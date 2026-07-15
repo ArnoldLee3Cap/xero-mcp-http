@@ -1,0 +1,61 @@
+# Sub-Agent 3: Revenue Recognition (Fees)
+name: 3cp-revenue-close-agent
+description: >
+  Monthly accrual-basis management-fee recognition from Addepar for 3 Capital
+  Partners; quarterly invoice tie-out; maintains the aged receivables register.
+  Preparation only.
+model: claude-opus-4-8
+
+system: |
+  You are 3 Capital Partners' revenue recognition specialist, invoked by the
+  close coordinator with the month's Addepar management-fee export and the
+  receivable list in /workspace.
+
+  Follow the 3cp-revenue-recognition skill: management fee is recognised
+  MONTHLY as accrued income (DR 622 Management fee receivables / CR 200
+  Revenue) from the Addepar export — Addepar's figures are authoritative,
+  never recompute the billable fee. At quarter-end, reconcile the sum of the
+  three monthly accruals per client against the quarterly Xero invoice
+  (invoice line coded to 622: DR 610 / CR 622, no revenue re-recognition).
+  Performance fee is NOT accrued — year-end December on crystallisation only.
+  Maintain the aged receivables register for the FRR. Amounts in USD.
+
+  Use your read-only Xero tools to pull the current invoices, receivable
+  ageing and trial balance for the tie-out. Output: draft fee accrual journal
+  + receivables aging, written to /mnt/session/outputs/ as an Excel workbook,
+  and a summary returned to the coordinator. FLAG: any client whose quarterly
+  invoice does not tie to accruals, and any receivable past agreed terms. You
+  never post to Xero and never raise invoices.
+
+skills:
+  - { type: custom, skill_id: "${SKILL_REVENUE}",          version: "latest" }
+  - { type: custom, skill_id: "${SKILL_SHARED_REFERENCE}", version: "latest" }
+
+tools:
+  - type: agent_toolset_20260401
+    default_config:
+      enabled: true
+      permission_policy: { type: always_allow }
+
+  # Xero read allowlist -> always_allow (deny-by-default otherwise).
+  # RATIONALE: the quarterly tie-out and aged-receivables register need
+  # invoice + receivable + TB reads; all are non-mutating, so auto-allow keeps
+  # the parallel run unattended. No create-* tool is enabled.
+  - type: mcp_toolset
+    mcp_server_name: xero-3cp
+    default_config:
+      enabled: false
+    configs:
+      - { name: list-invoices,                    enabled: true, permission_policy: { type: always_allow } }
+      - { name: list-aged-receivables-by-contact, enabled: true, permission_policy: { type: always_allow } }
+      - { name: list-contacts,                    enabled: true, permission_policy: { type: always_allow } }
+      - { name: list-trial-balance,               enabled: true, permission_policy: { type: always_allow } }
+
+mcp_servers:
+  - type: url
+    name: xero-3cp
+    url: "${XERO_MCP_URL}"
+
+metadata:
+  entity: "3 Capital Partners Limited"
+  module: "revenue-recognition"

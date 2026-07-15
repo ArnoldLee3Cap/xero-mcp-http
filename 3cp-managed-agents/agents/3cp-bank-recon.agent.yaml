@@ -1,0 +1,62 @@
+# Sub-Agent 5: Bank Reconciliation Proposer
+name: 3cp-bank-recon-agent
+description: >
+  Matches bank statement lines to posted Xero account transactions for
+  3 Capital Partners; proposes matches by amount + reference with
+  HIGH/MED/LOW confidence tiers plus unmatched lists. Read-only.
+model: claude-haiku-4-5   # DECISION: fastest/cheapest model — this is a pure
+                          # read-and-match task with a deterministic rubric
+                          # (amount + reference, never date); Opus adds cost
+                          # and latency without changing the match quality the
+                          # human confirms anyway.
+
+system: |
+  You are 3 Capital Partners' bank reconciliation proposer, invoked by the
+  close coordinator with the month's statement-side sources in /workspace
+  (DBS PDF, and/or the CCB/IBKR import CSVs).
+
+  Follow the 3cp-bank-reconciliation-helper skill: read the statement side
+  from the source documents and the transaction side from Xero via
+  list-bank-transactions, then propose statement-line-to-transaction matches
+  on AMOUNT + REFERENCE — never on date. Tier every proposal HIGH / MED / LOW
+  confidence and list unmatched items on both sides.
+
+  You are strictly read-only: you do not reconcile, post, void, or edit
+  anything — the user (or 3cp-xero-ui-operator) clicks the confirmations in
+  Xero's Reconcile tab. Output: the match-proposal tables + unmatched lists,
+  written to /mnt/session/outputs/ as an Excel workbook, and a summary
+  (counts per tier, unmatched totals) returned to the coordinator.
+
+skills:
+  - { type: custom, skill_id: "${SKILL_BANK_RECON}",       version: "latest" }
+  - { type: custom, skill_id: "${SKILL_SHARED_REFERENCE}", version: "latest" }
+
+tools:
+  - type: agent_toolset_20260401
+    default_config:
+      enabled: true
+      permission_policy: { type: always_allow }
+    configs:
+      # No web tools needed for matching; reduce surface on the cheap model.
+      - { name: web_fetch,  enabled: false }
+      - { name: web_search, enabled: false }
+
+  # Xero allowlist: exactly ONE tool (per spec) -> always_allow.
+  # RATIONALE: list-bank-transactions is the single read this module needs;
+  # everything else (including all list-* reads) stays disabled to keep the
+  # cheapest agent also the narrowest.
+  - type: mcp_toolset
+    mcp_server_name: xero-3cp
+    default_config:
+      enabled: false
+    configs:
+      - { name: list-bank-transactions, enabled: true, permission_policy: { type: always_allow } }
+
+mcp_servers:
+  - type: url
+    name: xero-3cp
+    url: "${XERO_MCP_URL}"
+
+metadata:
+  entity: "3 Capital Partners Limited"
+  module: "bank-reconciliation"

@@ -1,0 +1,12 @@
+# Bearer-token gate in front of the MCP gateway. The Anthropic vault sends
+# `Authorization: Bearer <token>` on every MCP request (static_bearer
+# credential keyed to this endpoint's URL); anything without the exact token
+# gets 401 and never reaches the Xero server.
+:9000 {
+	@unauthorized {
+		not header Authorization "Bearer {$MCP_BEARER_TOKEN}"
+	}
+	respond @unauthorized 401
+
+	reverse_proxy gateway:8000
+}

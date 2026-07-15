@@ -1,0 +1,22 @@
+# 3CP month-end close — shared environment template.
+# Apply once:  ENV_ID=$(ant beta:environments create < environment/3cp-close.environment.yaml --transform id -r)
+name: 3cp-close-env
+description: >
+  Container template for 3 Capital Partners month-end close sessions.
+  Shared by the coordinator and all module sub-agents.
+config:
+  type: cloud
+  networking:
+    # DECISION: limited (deny-by-default egress) rather than unrestricted.
+    # A close session handles payroll, bank and client data; the only network
+    # the agents legitimately need is (a) the xero-3cp MCP endpoint and
+    # (b) package installs for the Excel-writing skills (openpyxl etc. are
+    # preinstalled, but skills occasionally pip-install helpers).
+    type: limited
+    allow_package_managers: true   # pip/npm for skill dependencies
+    allow_mcp_servers: true        # REQUIRED — without this the xero-3cp MCP
+                                   # endpoint is unreachable and MCP tools fail
+                                   # silently. Alternative: list the MCP host in
+                                   # allowed_hosts explicitly.
+    # allowed_hosts: []            # add specific hosts here if the skills need
+                                   # any direct web fetches (none do today).

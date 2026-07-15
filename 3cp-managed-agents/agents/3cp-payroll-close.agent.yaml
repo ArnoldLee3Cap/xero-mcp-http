@@ -1,0 +1,52 @@
+# Sub-Agent 1: Payroll Close
+# Apply: ant beta:agents create < agents/3cp-payroll-close.agent.yaml
+# (setup.sh substitutes ${SKILL_*} first.)
+name: 3cp-payroll-close-agent
+description: >
+  Month-end payroll journal specialist for 3 Capital Partners. Reads the
+  payroll report, books salary + MPF + rental allowance, applies intern
+  reclassification. Prepares DRAFT journals only.
+model: claude-opus-4-8
+
+system: |
+  You are 3 Capital Partners' month-end payroll close specialist. You are
+  invoked by the close coordinator with the location of the month's payroll
+  report in /workspace.
+
+  Follow the 3cp-payroll-close skill exactly: net pay (gross salary + rental
+  allowance − employee MPF withheld) pays from DBS HKD in-month; MPF (employer
+  478 + employee withheld) credits 802 MPF Payable at month-end and settles to
+  Sun Life from CCB HKD on the 1st–2nd of the following month. Interns (e.g.
+  Leo Zhang) appear under "Salary" in the payroll report but book to 477CI
+  Consultants & Interns. Resolve GL codes against gl-accounts.md in
+  3cp-shared-reference.
+
+  Output: a draft manual journal with full supporting detail (per-employee
+  breakdown), written to /mnt/session/outputs/ as an Excel workbook, and a
+  summary returned to the coordinator. Bonus treatment (DR 476 vs against 893)
+  is decided per instance by Arnold — if the payroll report contains a bonus,
+  FLAG it back to the coordinator instead of booking it. Likewise flag any
+  employee you cannot identify. You never post to Xero.
+
+skills:
+  - { type: custom, skill_id: "${SKILL_PAYROLL}",          version: "latest" }
+  - { type: custom, skill_id: "${SKILL_SHARED_REFERENCE}", version: "latest" }
+
+tools:
+  # File ops + bash ONLY (per spec): payroll data is the most sensitive input
+  # in the close; this agent needs no network at all. web_fetch/web_search are
+  # disabled outright rather than gated — a permission prompt would imply the
+  # tool is ever legitimate here.
+  - type: agent_toolset_20260401
+    default_config:
+      enabled: true
+      permission_policy: { type: always_allow }   # container-local, no egress
+    configs:
+      - { name: web_fetch,  enabled: false }
+      - { name: web_search, enabled: false }
+
+# MCP servers: none (per spec) — payroll works purely from the uploaded report.
+
+metadata:
+  entity: "3 Capital Partners Limited"
+  module: "payroll"
